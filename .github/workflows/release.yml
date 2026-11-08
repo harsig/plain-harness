@@ -1,0 +1,43 @@
+name: release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write      # create tags and GitHub releases
+  issues: write        # comment on released issues
+  pull-requests: write # comment on released pull requests
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    container: golang:1.26.3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Test
+        working-directory: src
+        run: |
+          go vet ./...
+          go test ./...
+
+      # Container runs as root; workspace is owned by the runner user.
+      - name: Mark workspace as safe for git
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx --yes -p semantic-release@24 -p @semantic-release/exec@6 semantic-release
